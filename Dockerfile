@@ -1,22 +1,22 @@
-# Use official PHP + Apache image
+# Use official PHP + Apache
 FROM php:8.1-apache
 
-# Enable rewrite (not strictly required, but useful)
+# Enable Apache rewrite module
 RUN a2enmod rewrite
 
-# Install common extensions (mysqli, etc.)
+# Allow .htaccess overrides globally
+RUN sed -i 's/AllowOverride None/AllowOverride All/g' /etc/apache2/apache2.conf
+
+# Install MySQL extension
 RUN docker-php-ext-install mysqli
 
-# Copy source into webroot
-COPY src/ /var/www/html/src/
-COPY index.php /var/www/html/
+# Copy whole project into Apache webroot
+COPY . /var/www/html/
 
-# Ensure logs directory exists and is writable
-RUN mkdir -p /var/www/html/src/logs \
- && chown -R www-data:www-data /var/www/html/src/logs \
- && chmod -R 755 /var/www/html/src/logs
+# Fix permissions for logs folder
+RUN mkdir -p /var/www/html/src/logs && \
+    chown -R www-data:www-data /var/www/html/src/logs && \
+    chmod -R 755 /var/www/html/src/logs
 
-# Expose port 80
+# Expose port
 EXPOSE 80
-
-# Default command provided by base image (Apache)
