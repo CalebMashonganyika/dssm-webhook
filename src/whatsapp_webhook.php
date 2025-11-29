@@ -17,7 +17,7 @@ $DB_USER = getenv('DB_USER') ?: 'root';
 $DB_PASS = getenv('DB_PASS') ?: '';
 
 // Configuration constants
-define('SUBSCRIPTION_PRICE', 3.00); // $3 USD
+define('SUBSCRIPTION_PRICE', 0.10); // $0.10 USD for testing
 define('CODE_EXPIRY_MINUTES', 20);
 define('SUBSCRIPTION_DAYS', 30);
 
