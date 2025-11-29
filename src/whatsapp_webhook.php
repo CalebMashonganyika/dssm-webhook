@@ -1,5 +1,5 @@
 <?php
-// whatsapp_webhook.php - Complete WhatsApp EcoCash subscription backend
+// whatsapp_webhook.php - WhatsApp Premium Activation Code System
 // Render-compatible with environment variables
 
 // Enable error reporting for debugging (remove in production)
@@ -17,9 +17,7 @@ $DB_USER = getenv('DB_USER') ?: 'root';
 $DB_PASS = getenv('DB_PASS') ?: '';
 
 // Configuration constants
-define('SUBSCRIPTION_PRICE', 0.10); // $0.10 USD for testing
-define('CODE_EXPIRY_MINUTES', 20);
-define('SUBSCRIPTION_DAYS', 30);
+define('CODE_EXPIRY_MINUTES', 5); // 5 minutes for testing
 
 // --- DATABASE CONNECTION ---
 function getDBConnection() {
@@ -93,176 +91,53 @@ function sendWhatsAppMessage($to, $message) {
     }
 }
 
-// --- ECOCASH MESSAGE PARSING ---
-function parseEcoCashMessage($message) {
-    // Normalize message
-    $message = trim($message);
-    $message = preg_replace('/\s+/', ' ', $message);
-
-    // Check if it's an EcoCash message
-    if (!preg_match('/^You have received/i', $message)) {
-        return ['valid' => false, 'error' => 'Not an EcoCash payment message'];
-    }
-
-    // Extract amount
-    if (!preg_match('/received \$?(\d+(?:\.\d{2})?)/i', $message, $amountMatch)) {
-        return ['valid' => false, 'error' => 'Could not extract amount'];
-    }
-    $amount = floatval($amountMatch[1]);
-
-    // Check amount
-    if (abs($amount - SUBSCRIPTION_PRICE) > 0.01) {
-        return ['valid' => false, 'error' => 'Amount does not match subscription price ($' . SUBSCRIPTION_PRICE . ')'];
-    }
-
-    // Extract sender phone
-    if (!preg_match('/from (\d{10,12})/i', $message, $phoneMatch)) {
-        return ['valid' => false, 'error' => 'Could not extract sender phone'];
-    }
-    $fromPhone = $phoneMatch[1];
-
-    // Extract transaction reference
-    if (!preg_match('/reference:?\s*([A-Z0-9]+)/i', $message, $refMatch)) {
-        return ['valid' => false, 'error' => 'Could not extract transaction reference'];
-    }
-    $transactionRef = strtoupper($refMatch[1]);
-
-    return [
-        'valid' => true,
-        'amount' => $amount,
-        'from_phone' => $fromPhone,
-        'transaction_ref' => $transactionRef,
-        'timestamp' => date('Y-m-d H:i:s')
-    ];
-}
-
-// --- DATABASE OPERATIONS ---
-function findOrCreateUser($phone) {
+// --- ACTIVATION CODE GENERATION ---
+function generateActivationCode($phone) {
     $pdo = getDBConnection();
 
-    // Check if user exists
-    $stmt = $pdo->prepare("SELECT id FROM users WHERE phone = ?");
-    $stmt->execute([$phone]);
-    $user = $stmt->fetch();
-
-    if ($user) {
-        return $user['id'];
-    }
-
-    // Create new user
-    $stmt = $pdo->prepare("INSERT INTO users (phone, created_at) VALUES (?, NOW())");
-    $stmt->execute([$phone]);
-    return $pdo->lastInsertId();
-}
-
-function savePayment($userId, $paymentData) {
-    $pdo = getDBConnection();
-
-    // Check for duplicate transaction
-    $stmt = $pdo->prepare("SELECT id FROM payments WHERE transaction_ref = ?");
-    $stmt->execute([$paymentData['transaction_ref']]);
-    if ($stmt->fetch()) {
-        return ['success' => false, 'error' => 'Transaction already processed'];
-    }
-
-    // Save payment
-    $stmt = $pdo->prepare("
-        INSERT INTO payments (user_id, phone, amount, transaction_ref, timestamp, status, raw_message)
-        VALUES (?, ?, ?, ?, ?, 'verified', ?)
-    ");
-    $stmt->execute([
-        $userId,
-        $paymentData['from_phone'],
-        $paymentData['amount'],
-        $paymentData['transaction_ref'],
-        $paymentData['timestamp'],
-        json_encode($paymentData)
-    ]);
-
-    return ['success' => true, 'payment_id' => $pdo->lastInsertId()];
-}
-
-function generateActivationCode($userId, $paymentId) {
-    $pdo = getDBConnection();
-
-    // Generate unique code
-    $code = strtoupper(bin2hex(random_bytes(8))); // 16 character code
-    $plan = '1M'; // Monthly
-    $expiresAt = date('Y-m-d H:i:s', strtotime("+20 minutes"));
+    // Generate unique 8-character code
+    $code = strtoupper(substr(md5(uniqid(mt_rand(), true)), 0, 8));
+    $expiresAt = date('Y-m-d H:i:s', strtotime("+" . CODE_EXPIRY_MINUTES . " minutes"));
 
     // Save activation code
     $stmt = $pdo->prepare("
-        INSERT INTO activation_codes (code, user_id, payment_id, plan, amount, expires_at, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, NOW())
+        INSERT INTO activation_codes (code, phone, expires_at, used, created_at)
+        VALUES (?, ?, ?, 0, NOW())
     ");
-    $stmt->execute([$code, $userId, $paymentId, $plan, SUBSCRIPTION_PRICE, $expiresAt]);
+    $stmt->execute([$code, $phone, $expiresAt]);
 
     return ['code' => $code, 'expires_at' => $expiresAt];
 }
 
-function createOrUpdateSubscription($userId, $activationCode, $paymentId) {
-    $pdo = getDBConnection();
+// --- MESSAGE PROCESSING ---
+function processActivationRequest($message, $senderPhone) {
+    logMessage("Processing activation request from $senderPhone: $message");
 
-    $startDate = date('Y-m-d H:i:s');
-    $expiryDate = date('Y-m-d H:i:s', strtotime("+30 days"));
-    $plan = '1M';
+    // Check if it's a request for activation code
+    $message = strtolower(trim($message));
+    if (strpos($message, 'activate') !== false || strpos($message, 'premium') !== false || strpos($message, 'code') !== false) {
 
-    // Create subscription
-    $stmt = $pdo->prepare("
-        INSERT INTO subscriptions (user_id, activation_code, payment_id, plan, start_date, expiry_date, status, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, 'active', NOW())
-    ");
-    $stmt->execute([$userId, $activationCode, $paymentId, $plan, $startDate, $expiryDate]);
+        try {
+            // Generate activation code
+            $codeResult = generateActivationCode($senderPhone);
+            $activationCode = $codeResult['code'];
 
-    return ['start_date' => $startDate, 'expiry_date' => $expiryDate];
-}
+            logMessage("Activation code generated for $senderPhone: $activationCode");
 
-// --- MAIN PROCESSING ---
-function processEcoCashPayment($message, $senderPhone) {
-    logMessage("Processing EcoCash message from $senderPhone: $message");
+            // Send activation code
+            $message = "🎉 Your Premium Activation Code:\n\n$activationCode\n\nThis code expires in " . CODE_EXPIRY_MINUTES . " minutes.\n\nEnter this code in the app to unlock premium features for 5 minutes.";
 
-    // Parse the message
-    $parsed = parseEcoCashMessage($message);
-    if (!$parsed['valid']) {
-        logMessage("Invalid EcoCash message: " . $parsed['error'], 'ERROR');
-        sendWhatsAppMessage($senderPhone, "❌ Invalid payment message: " . $parsed['error'] . "\n\nPlease send the exact EcoCash payment confirmation message.");
-        return;
-    }
+            sendWhatsAppMessage($senderPhone, $message);
+            logMessage("Activation code sent to $senderPhone");
 
-    try {
-        // Find or create user
-        $userId = findOrCreateUser($parsed['from_phone']);
-        logMessage("User ID: $userId for phone: " . $parsed['from_phone']);
-
-        // Save payment
-        $paymentResult = savePayment($userId, $parsed);
-        if (!$paymentResult['success']) {
-            logMessage("Payment save failed: " . $paymentResult['error'], 'ERROR');
-            sendWhatsAppMessage($senderPhone, "❌ Payment processing failed: " . $paymentResult['error']);
-            return;
+        } catch (Exception $e) {
+            logMessage("Code generation error: " . $e->getMessage(), 'ERROR');
+            sendWhatsAppMessage($senderPhone, "❌ Sorry, there was an error generating your activation code. Please try again.");
         }
-
-        $paymentId = $paymentResult['payment_id'];
-        logMessage("Payment saved with ID: $paymentId");
-
-        // Generate activation code
-        $codeResult = generateActivationCode($userId, $paymentId);
-        $activationCode = $codeResult['code'];
-        logMessage("Activation code generated: $activationCode");
-
-        // Create subscription
-        $subscriptionResult = createOrUpdateSubscription($userId, $activationCode, $paymentId);
-        logMessage("Subscription created for user $userId");
-
-        // Send success message
-        $successMessage = "✅ Payment verified!\n\nYour activation code: $activationCode\n\nThis code expires in 20 minutes. Use it in the app to activate your 30-day subscription.";
-
-        sendWhatsAppMessage($senderPhone, $successMessage);
-        logMessage("Success message sent to $senderPhone");
-
-    } catch (Exception $e) {
-        logMessage("Processing error: " . $e->getMessage(), 'ERROR');
-        sendWhatsAppMessage($senderPhone, "❌ An error occurred while processing your payment. Please try again later.");
+    } else {
+        // Send help message
+        $helpMessage = "👋 Hi! Send 'activate' or 'premium' to get your activation code for unlocking premium features.";
+        sendWhatsAppMessage($senderPhone, $helpMessage);
     }
 }
 
@@ -314,8 +189,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 $sender = $message['from'];
                                 $text = $message['text']['body'];
 
-                                // Process the EcoCash payment
-                                processEcoCashPayment($text, $sender);
+                                // Process the activation request
+                                processActivationRequest($text, $sender);
                             }
                         }
                     }
