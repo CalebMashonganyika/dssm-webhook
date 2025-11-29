@@ -7,10 +7,10 @@ RUN a2enmod rewrite
 # Allow .htaccess overrides globally
 RUN sed -i 's/AllowOverride None/AllowOverride All/g' /etc/apache2/apache2.conf
 
-# Install MySQL extension
-RUN docker-php-ext-install mysqli
+# Install required extensions (mysqli + PDO MySQL)
+RUN docker-php-ext-install mysqli pdo pdo_mysql
 
-# Copy whole project into Apache webroot
+# Copy entire project into document root
 COPY . /var/www/html/
 
 # Fix permissions for logs folder
@@ -18,5 +18,4 @@ RUN mkdir -p /var/www/html/src/logs && \
     chown -R www-data:www-data /var/www/html/src/logs && \
     chmod -R 755 /var/www/html/src/logs
 
-# Expose port
 EXPOSE 80
