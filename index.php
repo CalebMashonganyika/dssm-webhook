@@ -1,6 +1,35 @@
 <?php
 // index.php - Landing page for DSSM WhatsApp EcoCash Subscription System
 
+// Handle admin routing
+$requestUri = $_SERVER['REQUEST_URI'] ?? '';
+if (strpos($requestUri, '/admin') === 0) {
+    // Extract the admin path
+    $adminPath = str_replace('/admin', '', $requestUri);
+    if ($adminPath === '' || $adminPath === '/') {
+        $adminPath = '/index.php';
+    }
+
+    // Include the admin file
+    $adminFile = __DIR__ . '/admin' . $adminPath;
+    if (file_exists($adminFile) && is_file($adminFile)) {
+        include $adminFile;
+        exit;
+    } else {
+        // Try adding .php extension
+        $adminFileWithExt = __DIR__ . '/admin' . $adminPath . '.php';
+        if (file_exists($adminFileWithExt) && is_file($adminFileWithExt)) {
+            include $adminFileWithExt;
+            exit;
+        }
+    }
+
+    // If no file found, return 404
+    http_response_code(404);
+    echo "Admin page not found";
+    exit;
+}
+
 echo "<!DOCTYPE html>";
 echo "<html lang='en'>";
 echo "<head>";
