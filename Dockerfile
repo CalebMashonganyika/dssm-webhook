@@ -9,6 +9,7 @@ RUN docker-php-ext-install mysqli
 
 # Copy source into webroot
 COPY src/ /var/www/html/src/
+COPY index.php /var/www/html/
 
 # Ensure logs directory exists and is writable
 RUN mkdir -p /var/www/html/src/logs \
