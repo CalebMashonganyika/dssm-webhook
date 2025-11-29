@@ -1,21 +1,17 @@
-# Use official PHP + Apache image
-FROM php:8.1-apache
+FROM php:8.2-apache
 
-# Enable rewrite (not strictly required, but useful)
+# Enable Apache mod_rewrite
 RUN a2enmod rewrite
 
-# Install common extensions (mysqli, etc.)
-RUN docker-php-ext-install mysqli
+# Copy project files to Apache document root
+COPY . /var/www/html/
 
-# Copy source into webroot
-COPY src/ /var/www/html/src/
+# Correct permissions
+RUN chown -R www-data:www-data /var/www/html \
+    && chmod -R 755 /var/www/html
 
-# Ensure logs directory exists and is writable
-RUN mkdir -p /var/www/html/src/logs \
- && chown -R www-data:www-data /var/www/html/src/logs \
- && chmod -R 755 /var/www/html/src/logs
-
-# Expose port 80
+# Expose HTTP port
 EXPOSE 80
 
-# Default command provided by base image (Apache)
+# Start Apache server
+CMD ["apache2-foreground"]
