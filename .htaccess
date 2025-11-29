@@ -4,13 +4,13 @@ Options -Indexes
 RewriteEngine On
 RewriteBase /
 
-# If request is for a real file or folder, allow it
+# Allow existing files/folders
 RewriteCond %{REQUEST_FILENAME} -f [OR]
 RewriteCond %{REQUEST_FILENAME} -d
 RewriteRule ^ - [L]
 
-# Route /admin to /admin/index.php
+# /admin → /admin/index.php
 RewriteRule ^admin/?$ admin/index.php [L]
 
-# Route /admin/... to admin folder
+# /admin/... stays inside admin folder
 RewriteRule ^admin/(.*)$ admin/$1 [L]
