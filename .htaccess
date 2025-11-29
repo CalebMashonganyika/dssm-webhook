@@ -1,10 +1,9 @@
 DirectoryIndex index.php
-Options -Indexes
 
 RewriteEngine On
 RewriteBase /
 
-# Allow existing files/folders
+# Allow existing files or directories
 RewriteCond %{REQUEST_FILENAME} -f [OR]
 RewriteCond %{REQUEST_FILENAME} -d
 RewriteRule ^ - [L]
@@ -12,5 +11,5 @@ RewriteRule ^ - [L]
 # /admin → /admin/index.php
 RewriteRule ^admin/?$ admin/index.php [L]
 
-# /admin/... stays inside admin folder
+# Route anything under /admin/... to /admin folder
 RewriteRule ^admin/(.*)$ admin/$1 [L]
