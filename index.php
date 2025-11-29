@@ -22,7 +22,7 @@ echo "    <div class='status info'>📱 WhatsApp Webhook: Verified & Running</di
 echo "";
 echo "    <h2>🚀 How It Works</h2>";
 echo "    <ol>";
-echo "        <li>User pays $3 via EcoCash to <strong>0772872564</strong></li>";
+echo "        <li>User pays <strong>$0.10</strong> via EcoCash to <strong>0772872564</strong></li>";
 echo "        <li>User receives EcoCash SMS confirmation</li>";
 echo "        <li>User forwards SMS to WhatsApp Business number</li>";
 echo "        <li>System validates payment and generates activation code</li>";

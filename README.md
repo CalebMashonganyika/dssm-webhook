@@ -5,7 +5,7 @@ Complete WhatsApp Business API backend for EcoCash subscription processing, depl
 ## 🚀 System Overview
 
 This system allows users to:
-1. Pay $3 via EcoCash to `0772872564`
+1. Pay $0.10 via EcoCash to `0772872564`
 2. Forward the SMS confirmation to WhatsApp
 3. Receive an activation code automatically
 4. Enter the code in the Flutter app to activate a 30-day subscription
